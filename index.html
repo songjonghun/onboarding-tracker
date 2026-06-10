@@ -333,7 +333,13 @@ function init() {
 }
 
 function saveLocal() {
-  localStorage.setItem(SK, JSON.stringify({items, idCnt, catCnt, cats}));
+  // 앱 자체 키 + GAS 호환 키 모두 저장
+  localStorage.setItem(SK, JSON.stringify({
+    items, idCnt, catCnt, cats,
+    idCounter: idCnt,
+    catIdCounter: catCnt,
+    categories: cats
+  }));
 }
 
 // ── GAS 저장/불러오기 ─────────────────────────
@@ -349,7 +355,13 @@ function gasSave(manual) {
   if (saving) return;
   saving = true;
   if (manual) setSyncUI('ing', '저장 중...');
-  const payload = JSON.stringify({items, idCnt, catCnt, cats});
+  // GAS 호환 키로 저장 (이전 데이터와 호환)
+  const payload = JSON.stringify({
+    items, idCnt, catCnt, cats,
+    idCounter: idCnt,
+    catIdCounter: catCnt,
+    categories: cats
+  });
   fetch(GAS_URL, {
     method: 'POST',
     mode: 'no-cors',
@@ -398,9 +410,11 @@ function gasLoad(manual) {
         }
       }
       items  = d.items  || [];
-      idCnt  = d.idCnt  || d.idCounter || 1;
+      idCnt  = d.idCnt  || d.idCounter  || 1;
       catCnt = d.catCnt || d.catIdCounter || 10;
-      cats   = (d.cats || d.categories || []).length ? (d.cats || d.categories) : DEFAULT_CATS.map(c=>({...c}));
+      // cats/categories 둘 다 지원
+      const rawCats = d.cats || d.categories || [];
+      cats = rawCats.length ? rawCats : DEFAULT_CATS.map(c=>({...c}));
       saveLocal(); renderNav(); renderCatSel(); render();
       const now = new Date().toLocaleString('ko-KR',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
       document.getElementById('sync-last').textContent = '불러옴: ' + now;
