@@ -131,6 +131,14 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .ai-btn:hover{background:var(--accent-bg);color:var(--accent);border-color:var(--accent);}
 .ai-btn:disabled{opacity:.5;cursor:not-allowed;}
 .ai-result{padding:15px;font-size:13px;color:var(--text);line-height:1.8;min-height:72px;white-space:pre-wrap;}
+.ai-custom{padding:12px 15px;border-top:1px solid var(--border);}
+.ai-custom-label{font-size:11px;font-weight:600;color:var(--text3);letter-spacing:.5px;text-transform:uppercase;margin-bottom:8px;}
+.ai-custom-row{display:flex;gap:8px;align-items:flex-end;}
+.ai-custom-input{flex:1;padding:9px 11px;border:1px solid var(--border2);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;background:var(--bg);color:var(--text);outline:none;resize:vertical;min-height:72px;line-height:1.6;transition:border-color .15s;}
+.ai-custom-input:focus{border-color:var(--accent);background:var(--surface);}
+.ai-custom-btn{padding:9px 18px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);font-size:13px;font-weight:500;font-family:inherit;cursor:pointer;transition:opacity .15s;white-space:nowrap;height:fit-content;}
+.ai-custom-btn:hover{opacity:.85;}
+.ai-custom-btn:disabled{opacity:.5;cursor:not-allowed;}
 .ai-placeholder{color:var(--text3);}
 .ai-loading{color:var(--text2);animation:pulse 1.2s infinite;}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
@@ -265,16 +273,26 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
       <div class="ai-header">
         <span style="font-size:16px">✨</span>
         <span class="ai-header-title">Claude AI 분석</span>
-        <span class="ai-header-sub">항목 추가 후 버튼을 눌러보세요</span>
+        <span class="ai-header-sub" id="ai-header-sub">항목 추가 후 버튼을 눌러보세요</span>
       </div>
+      <!-- 빠른 분석 버튼 -->
       <div class="ai-btns">
         <button class="ai-btn" onclick="askAI('priority')">📊 우선순위 추천</button>
         <button class="ai-btn" onclick="askAI('gap')">🔍 누락 항목 감지</button>
         <button class="ai-btn" onclick="askAI('summary')">📝 현황 요약</button>
         <button class="ai-btn" onclick="askAI('next')">🎯 이번 주 집중 항목</button>
       </div>
+      <!-- 직접 질문 입력 -->
+      <div class="ai-custom">
+        <div class="ai-custom-label">💬 직접 질문하기</div>
+        <div class="ai-custom-row">
+          <textarea class="ai-custom-input" id="ai-custom-input" placeholder="예) IPO 준비에서 경영지원팀이 가장 먼저 해야 할 일이 뭔가요?&#10;예) 인수인계 항목 중 법무 관련으로 챙겨야 할 게 있을까요?&#10;예) 온보딩 2주차에 집중해야 할 것들을 정리해줘"></textarea>
+          <button class="ai-custom-btn" onclick="askAICustom()">전송</button>
+        </div>
+      </div>
+      <!-- 결과 -->
       <div class="ai-result" id="ai-result">
-        <span class="ai-placeholder">왼쪽에 API 키를 입력하고, 항목을 추가한 뒤 분석 버튼을 눌러보세요.</span>
+        <span class="ai-placeholder">버튼을 누르거나 직접 질문을 입력해보세요.</span>
       </div>
     </div>
   </main>
@@ -302,6 +320,7 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 
 <script>
 const STORAGE_KEY  = 'onboarding_v3';
+const GAS_AI_URL   = GAS_URL; // AI 분석도 Apps Script를 통해 중계
 const GAS_URL      = 'https://script.google.com/macros/s/AKfycbwFiaClVCA2pMrE-WOTVfO2hsPmb3effzFQiUR4Md_an4HPI7rK3LdW2IQvrfVZ_gvQPQ/exec';
 const AUTO_SAVE_MS = 3000; // 마지막 변경 후 3초 뒤 자동 저장
 let autoSaveTimer  = null;
@@ -694,13 +713,64 @@ function pickEmoji(i) {
 document.getElementById('cat-modal').addEventListener('click',e=>{ if(e.target===document.getElementById('cat-modal')) closeCatModal(); });
 
 // ── AI ───────────────────────────────────────
-async function askAI(type) {
+// ── AI 공통 호출 함수 ────────────────────────
+async function callAI(prompt) {
   const apiKey = (localStorage.getItem(API_KEY_KEY)||'').trim();
-  if (!apiKey)       { showToast('먼저 API 키를 입력해주세요'); return; }
+  if (!apiKey) { showToast('먼저 API 키를 입력해주세요'); return null; }
+
+  // Apps Script를 통해 Anthropic API 중계 호출
+  const res = await fetch(GAS_AI_URL, {
+    method: 'POST',
+    mode:   'no-cors',
+    headers: {'Content-Type': 'text/plain'},
+    body: JSON.stringify({
+      type:   'ai',
+      apiKey: apiKey,
+      prompt: prompt
+    })
+  });
+
+  // no-cors는 응답을 읽을 수 없으므로 JSONP 방식으로 결과 받기
+  return new Promise((resolve, reject) => {
+    const cbName = 'aicb_' + Date.now();
+    const script = document.createElement('script');
+    let done = false;
+    const timer = setTimeout(() => {
+      if (done) return; done = true;
+      try { document.head.removeChild(script); } catch(e) {}
+      delete window[cbName];
+      reject(new Error('응답 시간 초과'));
+    }, 30000);
+
+    window[cbName] = function(raw) {
+      if (done) return; done = true;
+      clearTimeout(timer);
+      try { document.head.removeChild(script); } catch(e) {}
+      delete window[cbName];
+      resolve(raw);
+    };
+    script.onerror = function() {
+      if (done) return; done = true;
+      clearTimeout(timer);
+      delete window[cbName];
+      reject(new Error('스크립트 로드 실패'));
+    };
+    // AI 결과를 JSONP로 받기 위해 별도 엔드포인트 사용
+    script.src = GAS_AI_URL + '?aiCallback=' + cbName + '&t=' + Date.now();
+    document.head.appendChild(script);
+  });
+}
+
+async function askAI(type) {
   if (!items.length) { showToast('항목을 먼저 추가해주세요'); return; }
+  const apiKey = (localStorage.getItem(API_KEY_KEY)||'').trim();
+  if (!apiKey) { showToast('먼저 API 키를 입력해주세요'); return; }
+
   const resultEl = document.getElementById('ai-result');
   document.querySelectorAll('.ai-btn').forEach(b=>b.disabled=true);
+  document.querySelector('.ai-custom-btn').disabled = true;
   resultEl.innerHTML = '<span class="ai-loading">분석 중입니다...</span>';
+
   const listText = items.map(i=>`[${i.cat}] 우선순위:${i.priority} / ${i.done?'완료':'미완료'} — ${i.text}${i.memo?' (메모: '+i.memo+')':''}`).join('\n');
   const catNames = categories.map(c=>c.name).join('/');
   const prompts  = {
@@ -709,31 +779,147 @@ async function askAI(type) {
     summary: `아래는 온보딩 업무 목록입니다.\n\n${listText}\n\n완료/미완료 현황 기반으로 현재 진행 상태를 3~4문장으로 요약해주세요.`,
     next:    `아래는 온보딩 업무 목록입니다.\n\n${listText}\n\n미완료 항목 중 이번 주 집중할 항목 3개를 이유와 함께 추천해주세요.`
   };
+
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        'x-api-key':apiKey,
-        'anthropic-version':'2023-06-01',
-        'anthropic-dangerous-direct-browser-calls':'true'
+    // 직접 Anthropic API 호출 시도 (claude.ai 환경)
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-calls': 'true'
       },
-      mode: 'cors',
-      body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',
-        max_tokens:1000,
-        system:'당신은 KOSDAQ IPO를 준비 중인 소규모 제조사의 경영지원 담당자 온보딩을 돕는 어시스턴트입니다. 한국어로 답변해주세요.',
-        messages:[{role:'user',content:prompts[type]}]
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: 'KOSDAQ IPO를 준비 중인 소규모 제조사의 경영지원 담당자 온보딩을 돕는 어시스턴트입니다. 한국어로 답변하세요.',
+        messages: [{ role: 'user', content: prompts[type] }]
       })
     });
-    if (!res.ok) { const e=await res.json(); throw new Error(e.error?.message||'오류'); }
+    if (!res.ok) throw new Error('API 오류');
     const data = await res.json();
-    resultEl.textContent = data.content?.map(b=>b.text||'').join('')||'응답을 받지 못했어요.';
+    resultEl.textContent = data.content?.map(b=>b.text||'').join('') || '응답 없음';
   } catch(e) {
-    resultEl.innerHTML = `<span style="color:var(--danger)">오류: ${e.message}</span>`;
+    // 직접 호출 실패 시 Apps Script 중계로 폴백
+    try {
+      const cbName = 'aicb_' + Date.now();
+      const script = document.createElement('script');
+      let done = false;
+      const timer = setTimeout(() => {
+        if (done) return; done = true;
+        try { document.head.removeChild(script); } catch(ex) {}
+        delete window[cbName];
+        resultEl.innerHTML = '<span style="color:var(--danger)">오류: 응답 시간 초과. API 키를 확인해주세요.</span>';
+      }, 30000);
+      window[cbName] = function(raw) {
+        if (done) return; done = true;
+        clearTimeout(timer);
+        try { document.head.removeChild(script); } catch(ex) {}
+        delete window[cbName];
+        try {
+          const d = (typeof raw === 'string') ? JSON.parse(raw) : raw;
+          const text = d.content?.map(b=>b.text||'').join('') || d.error?.message || '응답 없음';
+          resultEl.textContent = text;
+        } catch(ex) {
+          resultEl.innerHTML = '<span style="color:var(--danger)">오류: 응답 파싱 실패</span>';
+        }
+      };
+      script.onerror = function() {
+        if (done) return; done = true;
+        clearTimeout(timer);
+        delete window[cbName];
+        resultEl.innerHTML = '<span style="color:var(--danger)">오류: Apps Script 연결 실패. API 키를 확인해주세요.</span>';
+      };
+      script.src = GAS_AI_URL + '?aiCallback=' + cbName + '&apiKey=' + encodeURIComponent(apiKey) + '&prompt=' + encodeURIComponent(prompts[type]) + '&t=' + Date.now();
+      document.head.appendChild(script);
+      return; // finally 전에 리턴
+    } catch(ex) {
+      resultEl.innerHTML = `<span style="color:var(--danger)">오류: ${ex.message}</span>`;
+    }
   } finally {
     document.querySelectorAll('.ai-btn').forEach(b=>b.disabled=false);
+    document.querySelector('.ai-custom-btn').disabled = false;
   }
+}
+
+async function askAICustom() {
+  const input = document.getElementById('ai-custom-input');
+  const question = input.value.trim();
+  if (!question) { showToast('질문을 입력해주세요'); return; }
+  const apiKey = (localStorage.getItem(API_KEY_KEY)||'').trim();
+  if (!apiKey) { showToast('먼저 API 키를 입력해주세요'); return; }
+
+  const resultEl = document.getElementById('ai-result');
+  document.querySelectorAll('.ai-btn').forEach(b=>b.disabled=true);
+  document.querySelector('.ai-custom-btn').disabled = true;
+  resultEl.innerHTML = '<span class="ai-loading">답변 생성 중...</span>';
+
+  const listText = items.length
+    ? '\n\n[현재 온보딩 목록]\n' + items.map(i=>`[${i.cat}] ${i.done?'완료':'미완료'} — ${i.text}`).join('\n')
+    : '';
+
+  const fullPrompt = `당신은 KOSDAQ IPO를 준비 중인 소규모 제조사에 새로 합류한 경영지원 담당자의 온보딩을 돕는 어시스턴트입니다.${listText}\n\n질문: ${question}`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-calls': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1500,
+        messages: [{ role: 'user', content: fullPrompt }]
+      })
+    });
+    if (!res.ok) throw new Error('API 오류');
+    const data = await res.json();
+    resultEl.textContent = data.content?.map(b=>b.text||'').join('') || '응답 없음';
+  } catch(e) {
+    // Apps Script 중계 폴백
+    const cbName = 'aicb_' + Date.now();
+    const script = document.createElement('script');
+    let done = false;
+    const timer = setTimeout(() => {
+      if (done) return; done = true;
+      try { document.head.removeChild(script); } catch(ex) {}
+      delete window[cbName];
+      resultEl.innerHTML = '<span style="color:var(--danger)">오류: 응답 시간 초과</span>';
+      document.querySelectorAll('.ai-btn').forEach(b=>b.disabled=false);
+      document.querySelector('.ai-custom-btn').disabled = false;
+    }, 30000);
+    window[cbName] = function(raw) {
+      if (done) return; done = true;
+      clearTimeout(timer);
+      try { document.head.removeChild(script); } catch(ex) {}
+      delete window[cbName];
+      try {
+        const d = (typeof raw === 'string') ? JSON.parse(raw) : raw;
+        resultEl.textContent = d.content?.map(b=>b.text||'').join('') || d.error?.message || '응답 없음';
+      } catch(ex) {
+        resultEl.innerHTML = '<span style="color:var(--danger)">응답 파싱 실패</span>';
+      }
+      document.querySelectorAll('.ai-btn').forEach(b=>b.disabled=false);
+      document.querySelector('.ai-custom-btn').disabled = false;
+    };
+    script.onerror = function() {
+      if (done) return; done = true;
+      clearTimeout(timer);
+      delete window[cbName];
+      resultEl.innerHTML = '<span style="color:var(--danger)">연결 실패</span>';
+      document.querySelectorAll('.ai-btn').forEach(b=>b.disabled=false);
+      document.querySelector('.ai-custom-btn').disabled = false;
+    };
+    script.src = GAS_AI_URL + '?aiCallback=' + cbName + '&apiKey=' + encodeURIComponent(apiKey) + '&prompt=' + encodeURIComponent(fullPrompt) + '&t=' + Date.now();
+    document.head.appendChild(script);
+    return;
+  }
+  document.querySelectorAll('.ai-btn').forEach(b=>b.disabled=false);
+  document.querySelector('.ai-custom-btn').disabled = false;
 }
 
 // ── UTILS ────────────────────────────────────
