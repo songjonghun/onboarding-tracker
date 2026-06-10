@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>온보딩 트래커</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#F7F6F3; --surface:#FFFFFF; --surface2:#F0EEE9;
+  --border:#E2DED6; --border2:#C8C3BA;
+  --text:#1A1916; --text2:#6B6760; --text3:#A09C96;
+  --accent:#2C5F8A; --accent-bg:#EBF2F9;
+  --success:#2D7A4F; --success-bg:#EAF5EF;
+  --warn:#A05C0A; --warn-bg:#FEF3E2;
+  --danger:#B03030; --danger-bg:#FDEAEA;
+  --purple:#5A3E8A; --purple-bg:#F0EBFA;
+  --teal:#1A7A6E; --teal-bg:#E6F5F3;
+  --pink:#8A3A6A; --pink-bg:#F9EBF4;
+  --od:#0078D4; --od-bg:#E6F2FB;
+  --radius:10px; --radius-sm:6px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;line-height:1.6;}
+.layout{display:grid;grid-template-columns:270px 1fr;min-height:100vh;}
+
+/* SIDEBAR */
+.sidebar{background:var(--surface);border-right:1px solid var(--border);padding:24px 18px;display:flex;flex-direction:column;gap:18px;position:sticky;top:0;height:100vh;overflow-y:auto;}
+.logo{font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px;}
+.logo-icon{width:28px;height:28px;background:var(--accent);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:14px;}
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
+.stat-card{background:var(--surface2);border-radius:var(--radius-sm);padding:9px 11px;}
+.stat-label{font-size:11px;color:var(--text3);margin-bottom:2px;}
+.stat-num{font-size:19px;font-weight:600;color:var(--text);}
+.progress-label{display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:5px;}
+.progress-bar{height:5px;background:var(--surface2);border-radius:99px;overflow:hidden;}
+.progress-fill{height:100%;background:var(--accent);border-radius:99px;transition:width .4s ease;}
+.nav-title{font-size:11px;font-weight:600;color:var(--text3);letter-spacing:.5px;text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;}
+.nav-title button{font-size:11px;padding:2px 8px;border:1px solid var(--border2);border-radius:4px;background:transparent;color:var(--text3);cursor:pointer;font-family:inherit;}
+.nav-title button:hover{background:var(--surface2);color:var(--text);}
+.nav-btn{width:100%;display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:var(--radius-sm);border:none;background:transparent;color:var(--text2);font-size:13px;font-family:inherit;cursor:pointer;text-align:left;transition:all .15s;}
+.nav-btn:hover{background:var(--surface2);color:var(--text);}
+.nav-btn.active{background:var(--accent-bg);color:var(--accent);font-weight:500;}
+.nav-count{margin-left:auto;font-size:11px;padding:1px 6px;background:var(--surface2);border-radius:99px;color:var(--text3);}
+.nav-btn.active .nav-count{background:var(--accent);color:#fff;}
+
+/* SYNC PANEL */
+.sync-panel{background:var(--od-bg);border:1px solid #BAD9F5;border-radius:var(--radius);padding:13px 14px;}
+.sync-header{display:flex;align-items:center;gap:7px;margin-bottom:4px;}
+.sync-title{font-size:13px;font-weight:600;color:var(--od);}
+.sync-desc{font-size:11px;color:var(--text2);margin-bottom:10px;line-height:1.55;}
+.sync-btn{width:100%;padding:8px 12px;border:none;border-radius:var(--radius-sm);font-size:12px;font-weight:500;font-family:inherit;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:7px;}
+.sync-btn:last-child{margin-bottom:0;}
+.sync-btn-export{background:var(--od);color:#fff;}
+.sync-btn-export:hover{opacity:.88;}
+.sync-btn-import{background:var(--surface);color:var(--text2);border:1px solid var(--border2);}
+.sync-btn-import:hover{background:var(--surface2);}
+.sync-last{font-size:11px;color:var(--text3);margin-top:7px;text-align:center;min-height:14px;}
+.sync-guide{font-size:11px;color:var(--text3);line-height:1.6;margin-top:8px;padding-top:8px;border-top:1px solid #BAD9F5;}
+.sync-guide b{color:var(--od);}
+.sync-status-row{display:flex;align-items:center;gap:6px;margin-bottom:10px;}
+.sync-dot{font-size:11px;transition:color .3s;}
+.sync-dot.ok{color:var(--success);}
+.sync-dot.err{color:var(--danger);}
+.sync-dot.ing{color:var(--warn);animation:pulse 1s infinite;}
+.sync-status-text{font-size:11px;color:var(--text2);}
+
+/* API KEY */
+.api-section{border-top:1px solid var(--border);padding-top:14px;}
+.api-label{font-size:11px;color:var(--text3);margin-bottom:5px;}
+.api-input-wrap{position:relative;}
+.api-input{width:100%;padding:7px 30px 7px 9px;border:1px solid var(--border2);border-radius:var(--radius-sm);font-size:12px;font-family:inherit;background:var(--surface2);color:var(--text);outline:none;}
+.api-input:focus{border-color:var(--accent);}
+.api-toggle{position:absolute;right:7px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:13px;color:var(--text3);}
+.api-status{font-size:11px;margin-top:3px;}
+.api-status.ok{color:var(--success);}
+.api-status.err{color:var(--danger);}
+
+/* MAIN */
+.main{padding:28px 32px;max-width:820px;}
+.main-header{margin-bottom:20px;}
+.main-title{font-size:21px;font-weight:600;letter-spacing:-.5px;}
+.main-sub{font-size:13px;color:var(--text2);margin-top:3px;}
+.add-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:18px;}
+.add-row1{display:flex;gap:8px;margin-bottom:8px;}
+.add-input{flex:1;padding:8px 11px;border:1px solid var(--border2);border-radius:var(--radius-sm);font-size:14px;font-family:inherit;background:var(--bg);color:var(--text);outline:none;transition:border-color .15s;}
+.add-input:focus{border-color:var(--accent);background:var(--surface);}
+.add-memo{width:100%;padding:7px 11px;border:1px solid var(--border2);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;background:var(--bg);color:var(--text);outline:none;resize:vertical;min-height:52px;transition:border-color .15s;margin-bottom:8px;}
+.add-memo:focus{border-color:var(--accent);background:var(--surface);}
+.add-row2{display:flex;gap:7px;align-items:center;}
+.add-select{padding:6px 9px;border:1px solid var(--border2);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;background:var(--bg);color:var(--text);outline:none;cursor:pointer;}
+.add-select:focus{border-color:var(--accent);}
+.add-btn{padding:7px 16px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);font-size:13px;font-weight:500;font-family:inherit;cursor:pointer;transition:opacity .15s;margin-left:auto;}
+.add-btn:hover{opacity:.85;}
+.section-label{font-size:11px;font-weight:600;color:var(--text3);letter-spacing:.5px;text-transform:uppercase;margin-bottom:9px;}
+.items{display:flex;flex-direction:column;gap:6px;margin-bottom:22px;}
+.item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;transition:border-color .15s,opacity .2s;}
+.item:hover{border-color:var(--border2);}
+.item.done{opacity:.45;}
+.item-top{display:flex;align-items:center;gap:11px;padding:11px 13px;}
+.item.done .item-text{text-decoration:line-through;}
+.check-btn{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--border2);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;font-size:11px;}
+.check-btn.done{background:var(--success);border-color:var(--success);color:#fff;}
+.item-text{flex:1;font-size:14px;color:var(--text);}
+.item-meta{display:flex;align-items:center;gap:6px;}
+.badge{font-size:11px;padding:2px 8px;border-radius:99px;font-weight:500;white-space:nowrap;}
+.pri-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.p-높음{background:var(--danger);}
+.p-중간{background:var(--warn);}
+.p-낮음{background:var(--success);}
+.item-date{font-size:11px;color:var(--text3);}
+.item-actions{display:flex;gap:2px;}
+.icon-btn{background:none;border:none;cursor:pointer;color:var(--text3);font-size:15px;padding:2px 4px;line-height:1;border-radius:4px;transition:all .15s;opacity:0;}
+.item:hover .icon-btn{opacity:1;}
+.icon-btn:hover{background:var(--surface2);color:var(--text);}
+.icon-btn.danger:hover{background:var(--danger-bg);color:var(--danger);}
+.item-memo{padding:0 13px 11px 44px;font-size:13px;color:var(--text2);line-height:1.65;white-space:pre-wrap;}
+.memo-edit{width:calc(100% - 57px);padding:6px 10px;border:1px solid var(--border2);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;background:var(--surface2);color:var(--text);outline:none;resize:vertical;min-height:56px;margin:0 13px 8px 44px;display:block;}
+.memo-edit:focus{border-color:var(--accent);}
+.memo-edit-actions{display:flex;gap:6px;padding:0 13px 11px 44px;}
+.memo-save{padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer;font-family:inherit;}
+.memo-cancel{padding:4px 10px;background:transparent;border:1px solid var(--border2);border-radius:4px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--text2);}
+.empty{text-align:center;padding:44px 24px;color:var(--text3);font-size:14px;background:var(--surface);border:1px dashed var(--border2);border-radius:var(--radius);}
+.ai-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+.ai-header{padding:13px 15px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;}
+.ai-header-title{font-size:13px;font-weight:600;}
+.ai-header-sub{font-size:12px;color:var(--text3);margin-left:auto;}
+.ai-btns{padding:11px 15px;display:flex;gap:7px;flex-wrap:wrap;border-bottom:1px solid var(--border);}
+.ai-btn{padding:6px 13px;border:1px solid var(--border2);border-radius:var(--radius-sm);background:var(--bg);color:var(--text2);font-size:12px;font-family:inherit;cursor:pointer;transition:all .15s;}
+.ai-btn:hover{background:var(--accent-bg);color:var(--accent);border-color:var(--accent);}
+.ai-btn:disabled{opacity:.5;cursor:not-allowed;}
+.ai-result{padding:15px;font-size:13px;color:var(--text);line-height:1.8;min-height:72px;white-space:pre-wrap;}
+.ai-placeholder{color:var(--text3);}
+.ai-loading{color:var(--text2);animation:pulse 1.2s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:100;align-items:center;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--surface);border-radius:var(--radius);padding:24px;width:360px;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.15);}
+.modal-title{font-size:16px;font-weight:600;margin-bottom:4px;}
+.modal-sub{font-size:12px;color:var(--text2);margin-bottom:16px;}
+.modal-cat-list{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;}
+.modal-cat-row{display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--surface2);border-radius:var(--radius-sm);}
+.modal-cat-emoji{font-size:15px;cursor:pointer;user-select:none;min-width:22px;text-align:center;}
+.modal-cat-name{flex:1;font-size:13px;color:var(--text);background:transparent;border:none;font-family:inherit;outline:none;}
+.modal-cat-name:focus{border-bottom:1px solid var(--accent);}
+.modal-cat-del{background:none;border:none;cursor:pointer;color:var(--text3);font-size:15px;padding:0 2px;}
+.modal-cat-del:hover{color:var(--danger);}
+.modal-add-row{display:flex;gap:7px;margin-bottom:16px;}
+.modal-add-row input{flex:1;padding:7px 10px;border:1px solid var(--border2);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;background:var(--bg);color:var(--text);outline:none;}
+.modal-add-row input:focus{border-color:var(--accent);}
+.modal-add-row button{padding:7px 14px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);font-size:13px;cursor:pointer;font-family:inherit;}
+.modal-footer{display:flex;justify-content:flex-end;gap:8px;}
+.modal-close{padding:7px 18px;border:1px solid var(--border2);border-radius:var(--radius-sm);background:transparent;font-size:13px;cursor:pointer;font-family:inherit;color:var(--text2);}
+.modal-save{padding:7px 18px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);font-size:13px;cursor:pointer;font-family:inherit;}
+.toast{position:fixed;bottom:22px;right:22px;padding:9px 16px;background:var(--text);color:#fff;border-radius:var(--radius-sm);font-size:13px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999;}
+.toast.show{opacity:1;}
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:99px;}
+</style>
+</head>
+<body>
+
+<div class="layout">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-icon">📋</div>
+      온보딩 트래커
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-label">전체 항목</div><div class="stat-num" id="s-total">0</div></div>
+      <div class="stat-card"><div class="stat-label">완료</div><div class="stat-num" id="s-done">0</div></div>
+      <div class="stat-card"><div class="stat-label">진행 중</div><div class="stat-num" id="s-todo">0</div></div>
+      <div class="stat-card"><div class="stat-label">완료율</div><div class="stat-num" id="s-pct">0%</div></div>
+    </div>
+
+    <div>
+      <div class="progress-label"><span>전체 진행률</span><span id="p-pct">0%</span></div>
+      <div class="progress-bar"><div class="progress-fill" id="p-bar" style="width:0%"></div></div>
+    </div>
+
+    <div>
+      <div class="nav-title">
+        카테고리
+        <button onclick="openCatModal()">편집</button>
+      </div>
+      <div id="nav-cats"></div>
+      <button class="nav-btn active" id="nav-all" onclick="setFilter('전체',this)">
+        📁 전체 <span class="nav-count" id="cnt-전체">0</span>
+      </button>
+      <button class="nav-btn" id="nav-undone" onclick="setFilter('미완료',this)">
+        🔲 미완료만 <span class="nav-count" id="cnt-미완료">0</span>
+      </button>
+    </div>
+
+    <!-- GOOGLE SYNC PANEL -->
+    <div class="sync-panel">
+      <div class="sync-header">
+        <span>☁️</span>
+        <span class="sync-title">구글 자동 저장</span>
+      </div>
+      <div class="sync-status-row">
+        <span class="sync-dot" id="sync-dot">●</span>
+        <span class="sync-status-text" id="sync-status-text">연결 확인 중...</span>
+      </div>
+      <button class="sync-btn sync-btn-export" onclick="syncSave(true)">
+        💾 지금 바로 저장
+      </button>
+      <button class="sync-btn sync-btn-import" onclick="syncLoad(true)">
+        📂 최신 데이터 불러오기
+      </button>
+      <div class="sync-last" id="sync-last"></div>
+      <div class="sync-guide">
+        <b>✓ 자동 저장 켜짐</b><br>
+        항목 추가·수정 후 3초 뒤<br>
+        구글 시트에 자동 저장돼요.<br>
+        다른 PC에서 열면 자동 불러오기!
+      </div>
+    </div>
+
+    <!-- API KEY -->
+    <div class="api-section">
+      <div class="api-label">Anthropic API 키 (AI 분석용)</div>
+      <div class="api-input-wrap">
+        <input type="password" class="api-input" id="api-key" placeholder="sk-ant-..." oninput="saveApiKey()">
+        <button class="api-toggle" onclick="toggleApiVis()">👁</button>
+      </div>
+      <div class="api-status" id="api-status"></div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text3);line-height:1.5;">
+        발급: <a href="https://console.anthropic.com" target="_blank" style="color:var(--accent)">console.anthropic.com</a>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="main-header">
+      <div class="main-title" id="main-title">전체 항목</div>
+      <div class="main-sub">인계받을 업무, 학습할 내용, 메모를 자유롭게 기록하고 관리하세요</div>
+    </div>
+
+    <div class="add-card">
+      <div class="add-row1">
+        <input type="text" class="add-input" id="new-text" placeholder="새 항목 제목 (예: 경리 담당자에게 월마감 프로세스 인수인계)">
+      </div>
+      <textarea class="add-memo" id="new-memo" placeholder="메모 (선택) — 상세 내용, 참고사항, 담당자 연락처 등 자유롭게 작성하세요"></textarea>
+      <div class="add-row2">
+        <select class="add-select" id="new-cat"></select>
+        <select class="add-select" id="new-pri">
+          <option value="높음">🔴 높음</option>
+          <option value="중간">🟡 중간</option>
+          <option value="낮음">🟢 낮음</option>
+        </select>
+        <button class="add-btn" onclick="addItem()">+ 추가</button>
+      </div>
+    </div>
+
+    <div class="section-label" id="items-label">항목</div>
+    <div class="items" id="items-list"></div>
+
+    <div class="section-label">AI 분석</div>
+    <div class="ai-panel">
+      <div class="ai-header">
+        <span style="font-size:16px">✨</span>
+        <span class="ai-header-title">Claude AI 분석</span>
+        <span class="ai-header-sub">항목 추가 후 버튼을 눌러보세요</span>
+      </div>
+      <div class="ai-btns">
+        <button class="ai-btn" onclick="askAI('priority')">📊 우선순위 추천</button>
+        <button class="ai-btn" onclick="askAI('gap')">🔍 누락 항목 감지</button>
+        <button class="ai-btn" onclick="askAI('summary')">📝 현황 요약</button>
+        <button class="ai-btn" onclick="askAI('next')">🎯 이번 주 집중 항목</button>
+      </div>
+      <div class="ai-result" id="ai-result">
+        <span class="ai-placeholder">왼쪽에 API 키를 입력하고, 항목을 추가한 뒤 분석 버튼을 눌러보세요.</span>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- CATEGORY MODAL -->
+<div class="modal-overlay" id="cat-modal">
+  <div class="modal">
+    <div class="modal-title">카테고리 관리</div>
+    <div class="modal-sub">이름과 이모지를 수정하거나 새 카테고리를 추가할 수 있어요</div>
+    <div class="modal-cat-list" id="modal-cat-list"></div>
+    <div class="modal-add-row">
+      <input type="text" id="modal-new-emoji" placeholder="🏷️" style="width:52px;flex:none;text-align:center;">
+      <input type="text" id="modal-new-name" placeholder="새 카테고리 이름">
+      <button onclick="modalAddCat()">추가</button>
+    </div>
+    <div class="modal-footer">
+      <button class="modal-close" onclick="closeCatModal()">취소</button>
+      <button class="modal-save" onclick="saveCatModal()">저장</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const STORAGE_KEY  = 'onboarding_v3';
+const GAS_URL      = 'https://script.google.com/macros/s/AKfycbz1owtkcD-SOjQv7h5c3fsoGWRkU39FUjzjjMJGP9Q7nEviUFjLLNkXO8tNFB1ef-uSSg/exec';
+const AUTO_SAVE_MS = 3000; // 마지막 변경 후 3초 뒤 자동 저장
+let autoSaveTimer  = null;
+let isSyncing      = false;
+const API_KEY_KEY = 'ot_api_key';
+
+const COLOR_PALETTE = [
+  {bg:'var(--accent-bg)',text:'var(--accent)'},
+  {bg:'var(--warn-bg)',text:'var(--warn)'},
+  {bg:'var(--purple-bg)',text:'var(--purple)'},
+  {bg:'var(--danger-bg)',text:'var(--danger)'},
+  {bg:'var(--teal-bg)',text:'var(--teal)'},
+  {bg:'var(--pink-bg)',text:'var(--pink)'},
+  {bg:'var(--success-bg)',text:'var(--success)'},
+  {bg:'var(--surface2)',text:'var(--text2)'},
+];
+const EMOJIS=['📋','📚','🤝','📈','📌','💼','📂','🏗','💡','📞','🗂','✅','⚙️','💰','📣','🔧','📊','🎯','🏢','👥'];
+
+let items = [];
+let categories = [
+  {id:'인계',emoji:'📋',name:'인계'},
+  {id:'학습',emoji:'📚',name:'학습'},
+  {id:'관계',emoji:'🤝',name:'관계'},
+  {id:'IPO', emoji:'📈',name:'IPO'},
+  {id:'기타',emoji:'📌',name:'기타'},
+];
+let idCounter    = 1;
+let catIdCounter = 10;
+let currentFilter = '전체';
+let editingMemoId = null;
+let tempCats = [];
+
+// ── LOAD / SAVE ──────────────────────────────
+function load() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const d = JSON.parse(saved);
+      items        = d.items        || [];
+      idCounter    = d.idCounter    || 1;
+      catIdCounter = d.catIdCounter || 10;
+      if (d.categories && d.categories.length) categories = d.categories;
+    }
+    const k = localStorage.getItem(API_KEY_KEY);
+    if (k) document.getElementById('api-key').value = k;
+    const last = localStorage.getItem('ot_export_last');
+    if (last) document.getElementById('sync-last').textContent = '마지막 내보내기: ' + last;
+  } catch(e) {}
+  renderNav(); renderCatSelect(); render(); saveApiKey();
+  syncLoad(false);
+}
+
+function saveLocal() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({items, idCounter, categories, catIdCounter}));
+}
+
+// ── EXPORT / IMPORT ──────────────────────────
+function exportData() {
+  const payload = JSON.stringify({items, idCounter, categories, catIdCounter}, null, 2);
+  const blob    = new Blob([payload], {type:'application/json'});
+  const url     = URL.createObjectURL(blob);
+  const now     = new Date();
+  const stamp   = now.getFullYear()
+    + String(now.getMonth()+1).padStart(2,'0')
+    + String(now.getDate()).padStart(2,'0')
+    + '_' + String(now.getHours()).padStart(2,'0')
+    + String(now.getMinutes()).padStart(2,'0');
+  const a = document.createElement('a');
+  a.href = url; a.download = `onboarding_data_${stamp}.json`; a.click();
+  URL.revokeObjectURL(url);
+  const label = now.toLocaleString('ko-KR',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+  localStorage.setItem('ot_export_last', label);
+  document.getElementById('sync-last').textContent = '마지막 내보내기: ' + label;
+  showToast('파일이 저장됐어요 — OneDrive 폴더에 넣어두세요 💾');
+}
+
+function importData(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (!confirm('가져오면 현재 내용이 교체돼요. 계속할까요?\n(현재 데이터가 있다면 먼저 내보내기를 해두세요)')) {
+    e.target.value = ''; return;
+  }
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const d = JSON.parse(ev.target.result);
+      if (!Array.isArray(d.items)) throw new Error('올바른 파일이 아니에요');
+      items        = d.items        || [];
+      idCounter    = d.idCounter    || 1;
+      catIdCounter = d.catIdCounter || 10;
+      if (d.categories && d.categories.length) categories = d.categories;
+      saveLocal(); renderNav(); renderCatSelect(); render();
+      showToast('데이터를 불러왔어요 ✓');
+    } catch(err) {
+      showToast('파일을 읽을 수 없어요: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+// ── GOOGLE SHEETS SYNC ──────────────────────
+function setSyncStatus(state, msg) {
+  const dot  = document.getElementById('sync-dot');
+  const text = document.getElementById('sync-status-text');
+  if (!dot || !text) return;
+  dot.className  = 'sync-dot ' + state;
+  text.textContent = msg;
+}
+
+async function syncSave(manual) {
+  if (isSyncing) return;
+  isSyncing = true;
+  setSyncStatus('ing', '저장 중...');
+  try {
+    const payload = JSON.stringify({items, idCounter, categories, catIdCounter});
+    await fetch(GAS_URL, {
+      method: 'POST',
+      mode:   'no-cors',
+      headers:{'Content-Type':'text/plain'},
+      body:   payload
+    });
+    const now = new Date().toLocaleString('ko-KR',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    document.getElementById('sync-last').textContent = '저장: ' + now;
+    setSyncStatus('ok', '구글 시트에 저장됨 ✓');
+    if (manual) showToast('구글 시트에 저장됐어요 ✓');
+  } catch(e) {
+    setSyncStatus('err', '저장 실패 — 네트워크 확인');
+    if (manual) showToast('저장 실패: ' + e.message);
+  } finally {
+    isSyncing = false;
+  }
+}
+
+async function syncLoad(manual) {
+  setSyncStatus('ing', '불러오는 중...');
+  try {
+    const res  = await fetch(GAS_URL + '?t=' + Date.now());
+    const text = await res.text();
+    if (!text || text === '{}') {
+      setSyncStatus('ok', '저장된 데이터 없음');
+      if (manual) showToast('저장된 데이터가 없어요. 먼저 저장해주세요');
+      return;
+    }
+    const d = JSON.parse(text);
+    if (!Array.isArray(d.items)) throw new Error('데이터 형식 오류');
+    if (manual && items.length > 0) {
+      if (!confirm('현재 내용이 구글 시트 데이터로 교체돼요. 계속할까요?')) {
+        setSyncStatus('ok', '구글 시트 연결됨 ✓');
+        return;
+      }
+    }
+    items        = d.items        || [];
+    idCounter    = d.idCounter    || 1;
+    catIdCounter = d.catIdCounter || 10;
+    if (d.categories && d.categories.length) categories = d.categories;
+    saveLocal(); renderNav(); renderCatSelect(); render();
+    const now = new Date().toLocaleString('ko-KR',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    document.getElementById('sync-last').textContent = '불러옴: ' + now;
+    setSyncStatus('ok', '구글 시트 연결됨 ✓');
+    if (manual) showToast('최신 데이터를 불러왔어요 ✓');
+  } catch(e) {
+    setSyncStatus('err', '연결 실패 — 재시도 필요');
+    if (manual) showToast('불러오기 실패: ' + e.message);
+  }
+}
+
+function scheduleAutoSave() {
+  if (autoSaveTimer) clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(()=>syncSave(false), AUTO_SAVE_MS);
+  setSyncStatus('ing', '변경 감지 — 곧 저장...');
+}
+
+// ── API KEY ──────────────────────────────────
+function saveApiKey() {
+  const k = document.getElementById('api-key').value.trim();
+  localStorage.setItem(API_KEY_KEY, k);
+  const st = document.getElementById('api-status');
+  if (!k) { st.textContent=''; return; }
+  st.className  = (k.startsWith('sk-ant-')||k.startsWith('sk-')) ? 'api-status ok' : 'api-status err';
+  st.textContent = st.className.includes('ok') ? '✓ 키가 입력됐어요' : '형식을 확인해주세요';
+}
+function toggleApiVis() {
+  const i = document.getElementById('api-key');
+  i.type = i.type==='password' ? 'text' : 'password';
+}
+
+// ── CATEGORY HELPERS ─────────────────────────
+function getCatColor(idx) { return COLOR_PALETTE[idx % COLOR_PALETTE.length]; }
+function getCatIdx(name)  { return categories.findIndex(c=>c.name===name); }
+
+function renderNav() {
+  document.getElementById('nav-cats').innerHTML = categories.map(cat=>`
+    <button class="nav-btn ${currentFilter===cat.name?'active':''}" onclick="setFilter('${escHtml(cat.name)}',this)">
+      ${cat.emoji} ${escHtml(cat.name)}
+      <span class="nav-count" id="cnt-${escHtml(cat.name)}">${items.filter(i=>i.cat===cat.name).length}</span>
+    </button>`).join('');
+  document.getElementById('nav-all').classList.toggle('active',    currentFilter==='전체');
+  document.getElementById('nav-undone').classList.toggle('active', currentFilter==='미완료');
+}
+
+function renderCatSelect() {
+  const sel  = document.getElementById('new-cat');
+  const prev = sel.value;
+  sel.innerHTML = categories.map(c=>`<option value="${escHtml(c.name)}">${c.emoji} ${escHtml(c.name)}</option>`).join('');
+  if (categories.find(c=>c.name===prev)) sel.value = prev;
+}
+
+// ── ITEMS ────────────────────────────────────
+function addItem() {
+  const text = document.getElementById('new-text').value.trim();
+  if (!text) { showToast('제목을 입력해주세요'); return; }
+  items.push({
+    id: idCounter++,
+    text,
+    memo:     document.getElementById('new-memo').value.trim(),
+    cat:      document.getElementById('new-cat').value,
+    priority: document.getElementById('new-pri').value,
+    done: false,
+    date: new Date().toLocaleDateString('ko-KR',{month:'short',day:'numeric'})
+  });
+  document.getElementById('new-text').value = '';
+  document.getElementById('new-memo').value = '';
+  saveLocal(); scheduleAutoSave(); renderNav(); render();
+  showToast('항목이 추가됐어요');
+}
+
+document.addEventListener('keydown', e=>{
+  if (e.key==='Enter' && document.activeElement.id==='new-text') addItem();
+});
+
+function toggleDone(id) {
+  const item = items.find(i=>i.id===id);
+  if (item) { item.done=!item.done; saveLocal(); scheduleAutoSave(); renderNav(); render(); }
+}
+
+function deleteItem(id) {
+  if (!confirm('이 항목을 삭제할까요?')) return;
+  items = items.filter(i=>i.id!==id);
+  saveLocal(); scheduleAutoSave(); renderNav(); render();
+  showToast('삭제됐어요');
+}
+
+function startMemoEdit(id) {
+  editingMemoId=id; render();
+  setTimeout(()=>{ const t=document.getElementById('memo-edit-'+id); if(t) t.focus(); },50);
+}
+function cancelMemoEdit() { editingMemoId=null; render(); }
+function saveMemoEdit(id) {
+  const ta   = document.getElementById('memo-edit-'+id);
+  const item = items.find(i=>i.id===id);
+  if (item && ta) { item.memo=ta.value.trim(); saveLocal(); scheduleAutoSave(); }
+  editingMemoId=null; render();
+  showToast('메모가 저장됐어요');
+}
+
+function setFilter(f, btn) { currentFilter=f; renderNav(); render(); }
+
+function render() {
+  const total = items.length;
+  const done  = items.filter(i=>i.done).length;
+  const pct   = total===0 ? 0 : Math.round(done/total*100);
+  document.getElementById('s-total').textContent = total;
+  document.getElementById('s-done').textContent  = done;
+  document.getElementById('s-todo').textContent  = total-done;
+  document.getElementById('s-pct').textContent   = pct+'%';
+  document.getElementById('p-pct').textContent   = pct+'%';
+  document.getElementById('p-bar').style.width   = pct+'%';
+  document.getElementById('cnt-전체').textContent  = total;
+  document.getElementById('cnt-미완료').textContent = total-done;
+  categories.forEach(c=>{ const el=document.getElementById('cnt-'+c.name); if(el) el.textContent=items.filter(i=>i.cat===c.name).length; });
+
+  let filtered = items;
+  if      (currentFilter==='미완료') filtered = items.filter(i=>!i.done);
+  else if (currentFilter!=='전체')   filtered = items.filter(i=>i.cat===currentFilter);
+
+  const cat = categories.find(c=>c.name===currentFilter);
+  document.getElementById('main-title').textContent =
+    cat ? `${cat.emoji} ${cat.name}` :
+    currentFilter==='미완료' ? '🔲 미완료 항목' : '전체 항목';
+  document.getElementById('items-label').textContent = `${filtered.length}개 항목`;
+
+  const priOrder = {'높음':0,'중간':1,'낮음':2};
+  const sorted   = [...filtered].sort((a,b)=>{ if(a.done!==b.done) return a.done?1:-1; return priOrder[a.priority]-priOrder[b.priority]; });
+  const list = document.getElementById('items-list');
+  if (!sorted.length) { list.innerHTML='<div class="empty">아직 항목이 없어요.<br>위에서 첫 번째 항목을 추가해보세요!</div>'; return; }
+
+  list.innerHTML = sorted.map(item=>{
+    const col    = getCatColor(getCatIdx(item.cat));
+    const catObj = categories.find(c=>c.name===item.cat)||{emoji:'📌'};
+    const memoBlock = editingMemoId===item.id
+      ? `<textarea class="memo-edit" id="memo-edit-${item.id}">${escHtml(item.memo||'')}</textarea>
+         <div class="memo-edit-actions">
+           <button class="memo-save" onclick="saveMemoEdit(${item.id})">저장</button>
+           <button class="memo-cancel" onclick="cancelMemoEdit()">취소</button>
+         </div>`
+      : (item.memo ? `<div class="item-memo">${escHtml(item.memo)}</div>` : '');
+    return `<div class="item ${item.done?'done':''}">
+      <div class="item-top">
+        <button class="check-btn ${item.done?'done':''}" onclick="toggleDone(${item.id})">${item.done?'✓':''}</button>
+        <span class="item-text">${escHtml(item.text)}</span>
+        <div class="item-meta">
+          <div class="pri-dot p-${item.priority}" title="${item.priority}"></div>
+          <span class="badge" style="background:${col.bg};color:${col.text};">${catObj.emoji} ${escHtml(item.cat)}</span>
+          <span class="item-date">${item.date}</span>
+        </div>
+        <div class="item-actions">
+          <button class="icon-btn" onclick="startMemoEdit(${item.id})" title="메모 편집">✏️</button>
+          <button class="icon-btn danger" onclick="deleteItem(${item.id})" title="삭제">🗑</button>
+        </div>
+      </div>${memoBlock}</div>`;
+  }).join('');
+}
+
+// ── CATEGORY MODAL ───────────────────────────
+function openCatModal()  { tempCats=categories.map(c=>({...c})); renderModalList(); document.getElementById('cat-modal').classList.add('open'); }
+function closeCatModal() { document.getElementById('cat-modal').classList.remove('open'); }
+function renderModalList() {
+  document.getElementById('modal-cat-list').innerHTML = tempCats.map((c,i)=>`
+    <div class="modal-cat-row">
+      <span class="modal-cat-emoji" onclick="pickEmoji(${i})" title="클릭해서 이모지 변경">${c.emoji}</span>
+      <input class="modal-cat-name" value="${escHtml(c.name)}" onchange="tempCats[${i}].name=this.value">
+      <button class="modal-cat-del" onclick="modalDelCat(${i})">×</button>
+    </div>`).join('');
+}
+function modalDelCat(i) {
+  const count = items.filter(it=>it.cat===tempCats[i].name).length;
+  if (count>0 && !confirm(`"${tempCats[i].name}" 카테고리에 ${count}개 항목이 있어요. 삭제하면 마지막 카테고리로 이동돼요. 계속할까요?`)) return;
+  tempCats.splice(i,1); renderModalList();
+}
+function modalAddCat() {
+  const emoji = document.getElementById('modal-new-emoji').value.trim()||'🏷️';
+  const name  = document.getElementById('modal-new-name').value.trim();
+  if (!name) { showToast('카테고리 이름을 입력해주세요'); return; }
+  if (tempCats.find(c=>c.name===name)) { showToast('같은 이름이 이미 있어요'); return; }
+  tempCats.push({id:'cat_'+(catIdCounter++),emoji,name});
+  document.getElementById('modal-new-emoji').value='';
+  document.getElementById('modal-new-name').value='';
+  renderModalList();
+}
+function saveCatModal() {
+  document.querySelectorAll('.modal-cat-name').forEach((inp,i)=>{ if(tempCats[i]) tempCats[i].name=inp.value.trim()||tempCats[i].name; });
+  const fallback = tempCats[tempCats.length-1]?.name||'기타';
+  items.forEach(item=>{ if(!tempCats.find(c=>c.name===item.cat)) item.cat=fallback; });
+  categories = tempCats.map(c=>({...c}));
+  if (!categories.length) categories=[{id:'기타',emoji:'📌',name:'기타'}];
+  currentFilter='전체';
+  saveLocal(); scheduleAutoSave(); renderNav(); renderCatSelect(); render(); closeCatModal();
+  showToast('카테고리가 저장됐어요');
+}
+function pickEmoji(i) {
+  const cur = tempCats[i].emoji;
+  tempCats[i].emoji = EMOJIS[(EMOJIS.indexOf(cur)+1)%EMOJIS.length];
+  renderModalList();
+}
+document.getElementById('cat-modal').addEventListener('click',e=>{ if(e.target===document.getElementById('cat-modal')) closeCatModal(); });
+
+// ── AI ───────────────────────────────────────
+async function askAI(type) {
+  const apiKey = (localStorage.getItem(API_KEY_KEY)||'').trim();
+  if (!apiKey)       { showToast('먼저 API 키를 입력해주세요'); return; }
+  if (!items.length) { showToast('항목을 먼저 추가해주세요'); return; }
+  const resultEl = document.getElementById('ai-result');
+  document.querySelectorAll('.ai-btn').forEach(b=>b.disabled=true);
+  resultEl.innerHTML = '<span class="ai-loading">분석 중입니다...</span>';
+  const listText = items.map(i=>`[${i.cat}] 우선순위:${i.priority} / ${i.done?'완료':'미완료'} — ${i.text}${i.memo?' (메모: '+i.memo+')':''}`).join('\n');
+  const catNames = categories.map(c=>c.name).join('/');
+  const prompts  = {
+    priority:`아래는 KOSDAQ IPO를 준비 중인 소규모 제조사에 새로 합류한 경영지원 담당자의 온보딩 업무 목록입니다.\n\n${listText}\n\n우선순위 조정이 필요한 항목 3~5개를 이유와 함께 추천해주세요.`,
+    gap:     `아래는 KOSDAQ IPO를 준비 중인 소규모 제조사에 새로 합류한 경영지원 담당자의 온보딩 업무 목록입니다.\n\n${listText}\n\n빠진 것 같은 중요한 온보딩 항목을 카테고리(${catNames})와 함께 3~5개 제안해주세요.`,
+    summary: `아래는 온보딩 업무 목록입니다.\n\n${listText}\n\n완료/미완료 현황 기반으로 현재 진행 상태를 3~4문장으로 요약해주세요.`,
+    next:    `아래는 온보딩 업무 목록입니다.\n\n${listText}\n\n미완료 항목 중 이번 주 집중할 항목 3개를 이유와 함께 추천해주세요.`
+  };
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-calls':'true'},
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:prompts[type]}]})
+    });
+    if (!res.ok) { const e=await res.json(); throw new Error(e.error?.message||'오류'); }
+    const data = await res.json();
+    resultEl.textContent = data.content?.map(b=>b.text||'').join('')||'응답을 받지 못했어요.';
+  } catch(e) {
+    resultEl.innerHTML = `<span style="color:var(--danger)">오류: ${e.message}</span>`;
+  } finally {
+    document.querySelectorAll('.ai-btn').forEach(b=>b.disabled=false);
+  }
+}
+
+// ── UTILS ────────────────────────────────────
+function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function showToast(msg) {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2400);
+}
+
+load();
+</script>
+</body>
+</html>
