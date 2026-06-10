@@ -302,7 +302,7 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 
 <script>
 const STORAGE_KEY  = 'onboarding_v3';
-const GAS_URL      = 'https://script.google.com/macros/s/AKfycbz1owtkcD-SOjQv7h5c3fsoGWRkU39FUjzjjMJGP9Q7nEviUFjLLNkXO8tNFB1ef-uSSg/exec';
+const GAS_URL      = 'https://script.google.com/macros/s/AKfycbwFiaClVCA2pMrE-WOTVfO2hsPmb3effzFQiUR4Md_an4HPI7rK3LdW2IQvrfVZ_gvQPQ/exec';
 const AUTO_SAVE_MS = 3000; // 마지막 변경 후 3초 뒤 자동 저장
 let autoSaveTimer  = null;
 let isSyncing      = false;
@@ -441,60 +441,73 @@ async function syncSave(manual) {
 
 function syncLoad(manual) {
   setSyncStatus('ing', '불러오는 중...');
-  // JSONP 방식으로 CORS 우회
-  const cbName = 'gasCallback_' + Date.now();
+  const cbName = 'cb_' + Date.now();
   const script = document.createElement('script');
-  const timeout = setTimeout(() => {
-    setSyncStatus('err', '연결 실패 — 재시도 필요');
-    if (manual) showToast('불러오기 실패: 타임아웃');
-    document.body.removeChild(script);
+  let done = false;
+
+  const timer = setTimeout(() => {
+    if (done) return;
+    done = true;
+    if (document.body.contains(script)) document.body.removeChild(script);
     delete window[cbName];
+    setSyncStatus('err', '연결 실패 — 재시도 필요');
+    if (manual) showToast('불러오기 실패: 응답 없음 (10초 초과)');
   }, 10000);
 
-  window[cbName] = function(data) {
-    clearTimeout(timeout);
-    document.body.removeChild(script);
+  window[cbName] = function(raw) {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    if (document.body.contains(script)) document.body.removeChild(script);
     delete window[cbName];
+
     try {
-      if (!data || data === '{}' || (typeof data === 'string' && data.trim() === '{}')) {
-        setSyncStatus('ok', '저장된 데이터 없음 — 먼저 저장하세요');
-        if (manual) showToast('저장된 데이터가 없어요. 항목 추가 후 저장해주세요');
+      // raw가 문자열이면 파싱, 객체면 그대로
+      const d = (typeof raw === 'string') ? JSON.parse(raw) : raw;
+
+      // 데이터 없는 경우
+      if (!d || !Array.isArray(d.items)) {
+        setSyncStatus('ok', '저장된 데이터 없음');
+        if (manual) showToast('아직 저장된 데이터가 없어요. 항목 추가 후 저장해주세요');
         return;
       }
-      const d = (typeof data === 'string') ? JSON.parse(data) : data;
-      if (!Array.isArray(d.items)) {
-        setSyncStatus('ok', '저장된 데이터 없음 — 먼저 저장하세요');
-        if (manual) showToast('저장된 데이터가 없어요. 항목 추가 후 저장해주세요');
-        return;
-      }
+
+      // 덮어쓰기 확인 (수동 불러오기이고 현재 데이터 있을 때)
       if (manual && items.length > 0) {
         if (!confirm('현재 내용이 구글 시트 데이터로 교체돼요. 계속할까요?')) {
           setSyncStatus('ok', '구글 시트 연결됨 ✓');
           return;
         }
       }
+
       items        = d.items        || [];
       idCounter    = d.idCounter    || 1;
       catIdCounter = d.catIdCounter || 10;
       if (d.categories && d.categories.length) categories = d.categories;
       saveLocal(); renderNav(); renderCatSelect(); render();
+
       const now = new Date().toLocaleString('ko-KR',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
       document.getElementById('sync-last').textContent = '불러옴: ' + now;
       setSyncStatus('ok', '구글 시트 연결됨 ✓');
       if (manual) showToast('최신 데이터를 불러왔어요 ✓');
-    } catch(e) {
-      setSyncStatus('err', '데이터 오류: ' + e.message);
-      if (manual) showToast('불러오기 실패: ' + e.message);
+
+    } catch(err) {
+      setSyncStatus('err', '데이터 오류');
+      if (manual) showToast('데이터 오류: ' + err.message);
     }
   };
 
-  script.src = GAS_URL + '?callback=' + cbName + '&t=' + Date.now();
   script.onerror = function() {
-    clearTimeout(timeout);
-    setSyncStatus('err', '연결 실패 — 재시도 필요');
-    if (manual) showToast('연결 실패: 스크립트 로드 오류');
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
     delete window[cbName];
+    setSyncStatus('err', '연결 실패 — 재시도 필요');
+    if (manual) showToast('연결 실패');
   };
+
+  // GAS URL에 JSONP 콜백 파라미터 추가
+  script.src = GAS_URL + '?callback=' + cbName + '&t=' + Date.now();
   document.body.appendChild(script);
 }
 
