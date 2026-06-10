@@ -441,92 +441,66 @@ async function syncSave(manual) {
 
 function syncLoad(manual) {
   setSyncStatus('ing', '불러오는 중...');
+  const cbName = 'cb_' + Math.random().toString(36).slice(2);
+  const script = document.createElement('script');
+  let done = false;
 
-  // fetch + no-cors 우회: GAS URL을 직접 fetch (redirect 따라가기)
-  fetch(GAS_URL + '?t=' + Date.now(), {
-    method: 'GET',
-    redirect: 'follow'
-  })
-  .then(res => {
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    return res.text();
-  })
-  .then(text => {
-    const clean = text.trim();
-    if (!clean || clean === '{}') {
-      setSyncStatus('ok', '저장된 데이터 없음');
-      if (manual) showToast('아직 저장된 데이터가 없어요. 항목 추가 후 저장해주세요');
-      return;
-    }
-    const d = JSON.parse(clean);
-    if (!Array.isArray(d.items)) {
-      setSyncStatus('ok', '저장된 데이터 없음');
-      if (manual) showToast('아직 저장된 데이터가 없어요');
-      return;
-    }
-    if (manual && items.length > 0) {
-      if (!confirm('현재 내용이 구글 시트 데이터로 교체돼요. 계속할까요?')) {
-        setSyncStatus('ok', '구글 시트 연결됨 ✓');
+  const timer = setTimeout(() => {
+    if (done) return;
+    done = true;
+    try { document.head.removeChild(script); } catch(e) {}
+    delete window[cbName];
+    setSyncStatus('err', '연결 실패 — 재시도 필요');
+    if (manual) showToast('불러오기 실패: 응답 없음');
+  }, 15000);
+
+  window[cbName] = function(raw) {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    try { document.head.removeChild(script); } catch(e) {}
+    delete window[cbName];
+
+    try {
+      const d = (typeof raw === 'string') ? JSON.parse(raw) : raw;
+      if (!d || !Array.isArray(d.items)) {
+        setSyncStatus('ok', '저장된 데이터 없음');
+        if (manual) showToast('아직 저장된 데이터가 없어요');
         return;
       }
-    }
-    items        = d.items        || [];
-    idCounter    = d.idCounter    || 1;
-    catIdCounter = d.catIdCounter || 10;
-    if (d.categories && d.categories.length) categories = d.categories;
-    saveLocal(); renderNav(); renderCatSelect(); render();
-    const now = new Date().toLocaleString('ko-KR',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
-    document.getElementById('sync-last').textContent = '불러옴: ' + now;
-    setSyncStatus('ok', '구글 시트 연결됨 ✓');
-    if (manual) showToast('최신 데이터를 불러왔어요 ✓');
-  })
-  .catch(err => {
-    // fetch 실패시 JSONP 방식으로 폴백
-    const cbName = 'cb_' + Date.now();
-    const script = document.createElement('script');
-    let done = false;
-    const timer = setTimeout(() => {
-      if (done) return; done = true;
-      if (document.body.contains(script)) document.body.removeChild(script);
-      delete window[cbName];
-      setSyncStatus('err', '연결 실패 — 재시도 필요');
-      if (manual) showToast('불러오기 실패');
-    }, 10000);
-    window[cbName] = function(raw) {
-      if (done) return; done = true;
-      clearTimeout(timer);
-      if (document.body.contains(script)) document.body.removeChild(script);
-      delete window[cbName];
-      try {
-        const d = (typeof raw === 'string') ? JSON.parse(raw) : raw;
-        if (!d || !Array.isArray(d.items)) {
-          setSyncStatus('ok', '저장된 데이터 없음');
-          if (manual) showToast('아직 저장된 데이터가 없어요');
+      if (manual && items.length > 0) {
+        if (!confirm('현재 내용이 구글 시트 데이터로 교체돼요. 계속할까요?')) {
+          setSyncStatus('ok', '구글 시트 연결됨 ✓');
           return;
         }
-        if (manual && items.length > 0) {
-          if (!confirm('현재 내용이 구글 시트 데이터로 교체돼요. 계속할까요?')) {
-            setSyncStatus('ok', '구글 시트 연결됨 ✓'); return;
-          }
-        }
-        items = d.items || []; idCounter = d.idCounter || 1; catIdCounter = d.catIdCounter || 10;
-        if (d.categories && d.categories.length) categories = d.categories;
-        saveLocal(); renderNav(); renderCatSelect(); render();
-        const now = new Date().toLocaleString('ko-KR',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
-        document.getElementById('sync-last').textContent = '불러옴: ' + now;
-        setSyncStatus('ok', '구글 시트 연결됨 ✓');
-        if (manual) showToast('최신 데이터를 불러왔어요 ✓');
-      } catch(e) {
-        setSyncStatus('err', '데이터 오류'); if (manual) showToast('오류: ' + e.message);
       }
-    };
-    script.onerror = function() {
-      if (done) return; done = true; clearTimeout(timer); delete window[cbName];
-      setSyncStatus('err', '연결 실패'); if (manual) showToast('연결 실패');
-    };
-    script.src = GAS_URL + '?callback=' + cbName + '&t=' + Date.now();
-    document.body.appendChild(script);
-  });
+      items        = d.items        || [];
+      idCounter    = d.idCounter    || 1;
+      catIdCounter = d.catIdCounter || 10;
+      if (d.categories && d.categories.length) categories = d.categories;
+      saveLocal(); renderNav(); renderCatSelect(); render();
+      const now = new Date().toLocaleString('ko-KR',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+      document.getElementById('sync-last').textContent = '불러옴: ' + now;
+      setSyncStatus('ok', '구글 시트 연결됨 ✓');
+      if (manual) showToast('최신 데이터를 불러왔어요 ✓');
+    } catch(err) {
+      setSyncStatus('err', '데이터 오류');
+      if (manual) showToast('오류: ' + err.message);
+    }
+  };
+
+  script.onerror = function() {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    try { document.head.removeChild(script); } catch(e) {}
+    delete window[cbName];
+    setSyncStatus('err', '연결 실패');
+    if (manual) showToast('스크립트 로드 실패');
+  };
+
+  script.src = GAS_URL + '?callback=' + cbName + '&t=' + Date.now();
+  document.head.appendChild(script);
 }
 
 function scheduleAutoSave() {
