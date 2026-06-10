@@ -340,13 +340,14 @@ const COLOR_PALETTE = [
 const EMOJIS=['📋','📚','🤝','📈','📌','💼','📂','🏗','💡','📞','🗂','✅','⚙️','💰','📣','🔧','📊','🎯','🏢','👥'];
 
 let items = [];
-let categories = [
-  {id:'인계',emoji:'📋',name:'인계'},
-  {id:'학습',emoji:'📚',name:'학습'},
-  {id:'관계',emoji:'🤝',name:'관계'},
-  {id:'IPO', emoji:'📈',name:'IPO'},
-  {id:'기타',emoji:'📌',name:'기타'},
+const DEFAULT_CATEGORIES = [
+  {id:'인계', emoji:'📋', name:'인계'},
+  {id:'학습', emoji:'📚', name:'학습'},
+  {id:'관계', emoji:'🤝', name:'관계'},
+  {id:'IPO',  emoji:'📈', name:'IPO'},
+  {id:'기타', emoji:'📌', name:'기타'},
 ];
+let categories = DEFAULT_CATEGORIES.map(c=>({...c}));
 let idCounter    = 1;
 let catIdCounter = 10;
 let currentFilter = '전체';
@@ -363,6 +364,7 @@ function load() {
       idCounter    = d.idCounter    || 1;
       catIdCounter = d.catIdCounter || 10;
       if (d.categories && d.categories.length) categories = d.categories;
+      else categories = DEFAULT_CATEGORIES.map(c=>({...c}));
     }
     const k = localStorage.getItem(API_KEY_KEY);
     if (k) document.getElementById('api-key').value = k;
@@ -370,7 +372,8 @@ function load() {
     if (last) document.getElementById('sync-last').textContent = '마지막 내보내기: ' + last;
   } catch(e) {}
   renderNav(); renderCatSelect(); render(); saveApiKey();
-  syncLoad(false);
+  // 시작시 자동 불러오기 (3초 후 - 페이지 완전 로드 후)
+  setTimeout(() => syncLoad(false), 1500);
 }
 
 function saveLocal() {
@@ -412,6 +415,7 @@ function importData(e) {
       idCounter    = d.idCounter    || 1;
       catIdCounter = d.catIdCounter || 10;
       if (d.categories && d.categories.length) categories = d.categories;
+      else categories = DEFAULT_CATEGORIES.map(c=>({...c}));
       saveLocal(); renderNav(); renderCatSelect(); render();
       showToast('데이터를 불러왔어요 ✓');
     } catch(err) {
@@ -459,7 +463,8 @@ async function syncSave(manual) {
 }
 
 function syncLoad(manual) {
-  setSyncStatus('ing', '불러오는 중...');
+  if (manual) setSyncStatus('ing', '불러오는 중...');
+  else setSyncStatus('ing', '연결 확인 중...');
   const cbName = 'cb_' + Math.random().toString(36).slice(2);
   const script = document.createElement('script');
   let done = false;
@@ -497,6 +502,7 @@ function syncLoad(manual) {
       idCounter    = d.idCounter    || 1;
       catIdCounter = d.catIdCounter || 10;
       if (d.categories && d.categories.length) categories = d.categories;
+      else categories = DEFAULT_CATEGORIES.map(c=>({...c}));
       saveLocal(); renderNav(); renderCatSelect(); render();
       const now = new Date().toLocaleString('ko-KR',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
       document.getElementById('sync-last').textContent = '불러옴: ' + now;
@@ -557,6 +563,10 @@ function renderNav() {
 }
 
 function renderCatSelect() {
+  // 카테고리가 비어있으면 기본값 복원
+  if (!categories || !categories.length) {
+    categories = DEFAULT_CATEGORIES.map(c=>({...c}));
+  }
   const sel  = document.getElementById('new-cat');
   const prev = sel.value;
   sel.innerHTML = categories.map(c=>`<option value="${escHtml(c.name)}">${c.emoji} ${escHtml(c.name)}</option>`).join('');
