@@ -628,74 +628,69 @@ function setAILoading(on) {
   document.getElementById('ai-send-btn').disabled = on;
 }
 
-async function callAnthropicDirect(prompt) {
-  const apiKey = (localStorage.getItem(AK)||'').trim();
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-calls': 'true'
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1500,
-      system: 'KOSDAQ IPO를 준비 중인 소규모 제조사 경영지원 담당자의 온보딩을 돕는 어시스턴트입니다. 항상 한국어로 답변하세요.',
-      messages: [{ role: 'user', content: prompt }]
-    })
-  });
-  if (!res.ok) throw new Error('API 오류 ' + res.status);
-  const d = await res.json();
-  return d.content?.map(b=>b.text||'').join('') || '응답 없음';
-}
-
-function callAnthropicViaGAS(prompt) {
-  return new Promise((resolve, reject) => {
-    const apiKey = (localStorage.getItem(AK)||'').trim();
-    const cb = 'aicb_' + Date.now();
-    const s  = document.createElement('script');
-    let done = false;
-    const t  = setTimeout(() => {
-      if (done) return; done = true;
-      try { document.head.removeChild(s); } catch(e){}
-      delete window[cb];
-      reject(new Error('응답 시간 초과 (30초)'));
-    }, 30000);
-    window[cb] = function(raw) {
-      if (done) return; done = true;
-      clearTimeout(t);
-      try { document.head.removeChild(s); } catch(e){}
-      delete window[cb];
-      try {
-        const d = typeof raw === 'string' ? JSON.parse(raw) : raw;
-        if (d.error) reject(new Error(d.error.message || 'API 오류'));
-        else resolve(d.content?.map(b=>b.text||'').join('') || '응답 없음');
-      } catch(e) { reject(e); }
-    };
-    s.onerror = function() {
-      if (done) return; done = true;
-      clearTimeout(t);
-      delete window[cb];
-      reject(new Error('스크립트 로드 실패'));
-    };
-    s.src = GAS_URL
-      + '?aiCallback=' + cb
-      + '&apiKey=' + encodeURIComponent(apiKey)
-      + '&prompt=' + encodeURIComponent(prompt)
-      + '&t=' + Date.now();
-    document.head.appendChild(s);
-  });
-}
-
 async function runAI(prompt) {
   const apiKey = (localStorage.getItem(AK)||'').trim();
   if (!apiKey) { showToast('먼저 API 키를 입력해주세요'); return null; }
+
+  // 방법 1: 직접 호출 (anthropic-dangerous-direct-browser-calls)
   try {
-    return await callAnthropicDirect(prompt);
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-calls': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1500,
+        system: 'KOSDAQ IPO를 준비 중인 소규모 제조사 경영지원 담당자의 온보딩을 돕는 어시스턴트입니다. 항상 한국어로 답변하세요.',
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error?.message || 'API 오류 ' + res.status);
+    }
+    const d = await res.json();
+    return d.content?.map(b=>b.text||'').join('') || '응답 없음';
   } catch(e) {
-    // 직접 호출 실패 → GAS 중계 시도
-    return await callAnthropicViaGAS(prompt);
+    // 방법 2: GAS 중계 (JSONP)
+    return new Promise((resolve, reject) => {
+      const cb = 'aicb_' + Date.now();
+      const s  = document.createElement('script');
+      let done = false;
+      const t  = setTimeout(() => {
+        if (done) return; done = true;
+        try { document.head.removeChild(s); } catch(ex){}
+        delete window[cb];
+        reject(new Error('응답 시간 초과'));
+      }, 30000);
+      window[cb] = function(raw) {
+        if (done) return; done = true;
+        clearTimeout(t);
+        try { document.head.removeChild(s); } catch(ex){}
+        delete window[cb];
+        try {
+          const d = typeof raw === 'string' ? JSON.parse(raw) : raw;
+          if (d.error) reject(new Error(d.error.message || 'GAS 오류'));
+          else resolve(d.content?.map(b=>b.text||'').join('') || '응답 없음');
+        } catch(ex) { reject(ex); }
+      };
+      s.onerror = function() {
+        if (done) return; done = true;
+        clearTimeout(t);
+        delete window[cb];
+        reject(new Error('GAS 연결 실패 — API 키를 확인해주세요'));
+      };
+      s.src = GAS_URL
+        + '?aiCallback=' + cb
+        + '&apiKey=' + encodeURIComponent(apiKey)
+        + '&prompt=' + encodeURIComponent(prompt)
+        + '&t=' + Date.now();
+      document.head.appendChild(s);
+    });
   }
 }
 
