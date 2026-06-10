@@ -418,14 +418,17 @@ async function syncSave(manual) {
   setSyncStatus('ing', '저장 중...');
   try {
     const payload = JSON.stringify({items, idCounter, categories, catIdCounter});
+    // POST는 no-cors 방식 사용 (opaque response가 정상)
     await fetch(GAS_URL, {
       method: 'POST',
       mode:   'no-cors',
       headers:{'Content-Type':'text/plain'},
       body:   payload
     });
+    // no-cors POST는 응답 확인 불가하지만 에러 없으면 성공으로 처리
     const now = new Date().toLocaleString('ko-KR',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
     document.getElementById('sync-last').textContent = '저장: ' + now;
+    localStorage.setItem('ot_sync_last', now);
     setSyncStatus('ok', '구글 시트에 저장됨 ✓');
     if (manual) showToast('구글 시트에 저장됐어요 ✓');
   } catch(e) {
@@ -436,37 +439,63 @@ async function syncSave(manual) {
   }
 }
 
-async function syncLoad(manual) {
+function syncLoad(manual) {
   setSyncStatus('ing', '불러오는 중...');
-  try {
-    const res  = await fetch(GAS_URL + '?t=' + Date.now());
-    const text = await res.text();
-    if (!text || text === '{}') {
-      setSyncStatus('ok', '저장된 데이터 없음');
-      if (manual) showToast('저장된 데이터가 없어요. 먼저 저장해주세요');
-      return;
-    }
-    const d = JSON.parse(text);
-    if (!Array.isArray(d.items)) throw new Error('데이터 형식 오류');
-    if (manual && items.length > 0) {
-      if (!confirm('현재 내용이 구글 시트 데이터로 교체돼요. 계속할까요?')) {
-        setSyncStatus('ok', '구글 시트 연결됨 ✓');
+  // JSONP 방식으로 CORS 우회
+  const cbName = 'gasCallback_' + Date.now();
+  const script = document.createElement('script');
+  const timeout = setTimeout(() => {
+    setSyncStatus('err', '연결 실패 — 재시도 필요');
+    if (manual) showToast('불러오기 실패: 타임아웃');
+    document.body.removeChild(script);
+    delete window[cbName];
+  }, 10000);
+
+  window[cbName] = function(data) {
+    clearTimeout(timeout);
+    document.body.removeChild(script);
+    delete window[cbName];
+    try {
+      if (!data || data === '{}' || (typeof data === 'string' && data.trim() === '{}')) {
+        setSyncStatus('ok', '저장된 데이터 없음 — 먼저 저장하세요');
+        if (manual) showToast('저장된 데이터가 없어요. 항목 추가 후 저장해주세요');
         return;
       }
+      const d = (typeof data === 'string') ? JSON.parse(data) : data;
+      if (!Array.isArray(d.items)) {
+        setSyncStatus('ok', '저장된 데이터 없음 — 먼저 저장하세요');
+        if (manual) showToast('저장된 데이터가 없어요. 항목 추가 후 저장해주세요');
+        return;
+      }
+      if (manual && items.length > 0) {
+        if (!confirm('현재 내용이 구글 시트 데이터로 교체돼요. 계속할까요?')) {
+          setSyncStatus('ok', '구글 시트 연결됨 ✓');
+          return;
+        }
+      }
+      items        = d.items        || [];
+      idCounter    = d.idCounter    || 1;
+      catIdCounter = d.catIdCounter || 10;
+      if (d.categories && d.categories.length) categories = d.categories;
+      saveLocal(); renderNav(); renderCatSelect(); render();
+      const now = new Date().toLocaleString('ko-KR',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+      document.getElementById('sync-last').textContent = '불러옴: ' + now;
+      setSyncStatus('ok', '구글 시트 연결됨 ✓');
+      if (manual) showToast('최신 데이터를 불러왔어요 ✓');
+    } catch(e) {
+      setSyncStatus('err', '데이터 오류: ' + e.message);
+      if (manual) showToast('불러오기 실패: ' + e.message);
     }
-    items        = d.items        || [];
-    idCounter    = d.idCounter    || 1;
-    catIdCounter = d.catIdCounter || 10;
-    if (d.categories && d.categories.length) categories = d.categories;
-    saveLocal(); renderNav(); renderCatSelect(); render();
-    const now = new Date().toLocaleString('ko-KR',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
-    document.getElementById('sync-last').textContent = '불러옴: ' + now;
-    setSyncStatus('ok', '구글 시트 연결됨 ✓');
-    if (manual) showToast('최신 데이터를 불러왔어요 ✓');
-  } catch(e) {
+  };
+
+  script.src = GAS_URL + '?callback=' + cbName + '&t=' + Date.now();
+  script.onerror = function() {
+    clearTimeout(timeout);
     setSyncStatus('err', '연결 실패 — 재시도 필요');
-    if (manual) showToast('불러오기 실패: ' + e.message);
-  }
+    if (manual) showToast('연결 실패: 스크립트 로드 오류');
+    delete window[cbName];
+  };
+  document.body.appendChild(script);
 }
 
 function scheduleAutoSave() {
