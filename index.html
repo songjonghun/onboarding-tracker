@@ -285,7 +285,7 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 
 <script>
 // ── 설정 ──────────────────────────────────────
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbwFiaClVCA2pMrE-WOTVfO2hsPmb3effzFQiUR4Md_an4HPI7rK3LdW2IQvrfVZ_gvQPQ/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbyDxMPlsSytXv-vTLM-kPiLjqSzwIoJdBnC43okwIJiK3pDSAuykoBlX6uplGV9effzaw/exec';
 const SK = 'ob_v4';
 const AK = 'ob_api';
 
@@ -622,80 +622,82 @@ function render() {
   }).join('');
 }
 
-// ── AI 분석 ───────────────────────────────────
+// ── AI 분석 (Claude.ai 연결 방식) ───────────
 function setAILoading(on) {
   document.querySelectorAll('.ai-btn').forEach(b=>b.disabled=on);
-  document.getElementById('ai-send-btn').disabled = on;
+  const sendBtn = document.getElementById('ai-send-btn');
+  if (sendBtn) sendBtn.disabled = on;
 }
 
-async function runAI(prompt) {
-  const apiKey = (localStorage.getItem(AK)||'').trim();
-  if (!apiKey) { showToast('먼저 API 키를 입력해주세요'); return null; }
+function getItemsContext() {
+  if (!items.length) return '';
+  return '
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-calls': 'true'
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1500,
-      system: 'KOSDAQ IPO를 준비 중인 소규모 제조사 경영지원 담당자의 온보딩을 돕는 어시스턴트입니다. 항상 한국어로 답변하세요.',
-      messages: [{ role: 'user', content: prompt }]
-    })
-  });
-
-  if (!res.ok) {
-    let errMsg = 'API 오류 ' + res.status;
-    try {
-      const err = await res.json();
-      errMsg = err.error?.message || errMsg;
-    } catch(e) {}
-    throw new Error(errMsg);
-  }
-
-  const d = await res.json();
-  return d.content?.map(b=>b.text||'').join('') || '응답 없음';
+[현재 온보딩 목록]
+' + items.map(i =>
+    `[${i.cat}] 우선순위:${i.priority} / ${i.done?'완료':'미완료'} — ${i.text}${i.memo?' (메모: '+i.memo+')':''}`
+  ).join('
+');
 }
 
-async function quickAI(type) {
-  if (!items.length) { showToast('항목을 먼저 추가해주세요'); return; }
+function openClaude(prompt) {
   const resultEl = document.getElementById('ai-result');
-  setAILoading(true);
-  resultEl.innerHTML = '<span class="ai-loading">분석 중입니다...</span>';
-  const list = items.map(i=>`[${i.cat}] 우선순위:${i.priority} / ${i.done?'완료':'미완료'} — ${i.text}${i.memo?' (메모: '+i.memo+')':''}`).join('\n');
+  // 클립보드에 복사
+  navigator.clipboard.writeText(prompt).then(() => {
+    resultEl.innerHTML = `
+      <div style="background:var(--success-bg);border:1px solid var(--success);border-radius:var(--rs);padding:14px;margin-bottom:10px;">
+        <div style="font-weight:600;color:var(--success);margin-bottom:6px;">✓ 프롬프트가 클립보드에 복사됐어요!</div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.6;">
+          1. 아래 버튼으로 Claude.ai가 열려요<br>
+          2. 대화창에 <b>Ctrl+V</b> 로 붙여넣기<br>
+          3. Enter 누르면 바로 분석 결과를 받아요!
+        </div>
+      </div>
+      <div style="background:var(--surface2);border-radius:var(--rs);padding:10px;font-size:12px;color:var(--text2);white-space:pre-wrap;max-height:120px;overflow-y:auto;">${esc(prompt.substring(0, 300))}${prompt.length > 300 ? '...' : ''}</div>
+      <a href="https://claude.ai/new" target="_blank" style="display:block;margin-top:10px;padding:10px;background:var(--accent);color:#fff;text-align:center;border-radius:var(--rs);text-decoration:none;font-size:13px;font-weight:500;">🤖 Claude.ai 열기 →</a>`;
+  }).catch(() => {
+    // 클립보드 실패시 텍스트만 표시
+    resultEl.innerHTML = `
+      <div style="background:var(--warn-bg);border:1px solid var(--warn);border-radius:var(--rs);padding:12px;margin-bottom:10px;">
+        <div style="font-weight:600;color:var(--warn);margin-bottom:4px;">아래 내용을 복사해서 Claude.ai에 붙여넣으세요</div>
+      </div>
+      <textarea style="width:100%;height:120px;padding:10px;border:1px solid var(--border2);border-radius:var(--rs);font-size:12px;font-family:inherit;resize:vertical;" onclick="this.select()">${esc(prompt)}</textarea>
+      <a href="https://claude.ai/new" target="_blank" style="display:block;margin-top:8px;padding:10px;background:var(--accent);color:#fff;text-align:center;border-radius:var(--rs);text-decoration:none;font-size:13px;font-weight:500;">🤖 Claude.ai 열기 →</a>`;
+    window.open('https://claude.ai/new', '_blank');
+  });
+}
+
+function quickAI(type) {
+  if (!items.length) { showToast('항목을 먼저 추가해주세요'); return; }
+  const ctx = getItemsContext();
   const catNames = cats.map(c=>c.name).join('/');
   const prompts = {
-    priority: `아래는 KOSDAQ IPO를 준비 중인 소규모 제조사에 새로 합류한 경영지원 담당자의 온보딩 업무 목록입니다.\n\n${list}\n\n우선순위 조정이 필요한 항목 3~5개를 이유와 함께 추천해주세요.`,
-    gap:      `아래는 KOSDAQ IPO를 준비 중인 소규모 제조사에 새로 합류한 경영지원 담당자의 온보딩 업무 목록입니다.\n\n${list}\n\n빠진 것 같은 중요한 온보딩 항목을 카테고리(${catNames})와 함께 3~5개 제안해주세요.`,
-    summary:  `아래는 온보딩 업무 목록입니다.\n\n${list}\n\n완료/미완료 현황 기반으로 현재 진행 상태를 3~4문장으로 요약해주세요.`,
-    next:     `아래는 온보딩 업무 목록입니다.\n\n${list}\n\n미완료 항목 중 이번 주 집중할 항목 3개를 이유와 함께 추천해주세요.`
+    priority: `KOSDAQ IPO를 준비 중인 소규모 제조사에 새로 합류한 경영지원 담당자입니다.${ctx}
+
+위 온보딩 업무 목록에서 우선순위 조정이 필요한 항목 3~5개를 이유와 함께 추천해주세요.`,
+    gap:      `KOSDAQ IPO를 준비 중인 소규모 제조사에 새로 합류한 경영지원 담당자입니다.${ctx}
+
+위 온보딩 업무 목록에서 빠진 것 같은 중요한 항목을 카테고리(${catNames})와 함께 3~5개 제안해주세요.`,
+    summary:  `KOSDAQ IPO를 준비 중인 소규모 제조사에 새로 합류한 경영지원 담당자입니다.${ctx}
+
+위 온보딩 업무 목록의 완료/미완료 현황을 바탕으로 현재 진행 상태를 3~4문장으로 요약해주세요.`,
+    next:     `KOSDAQ IPO를 준비 중인 소규모 제조사에 새로 합류한 경영지원 담당자입니다.${ctx}
+
+위 미완료 항목 중 이번 주에 집중해야 할 항목 3개를 이유와 함께 추천해주세요.`
   };
-  try {
-    resultEl.textContent = await runAI(prompts[type]) || '응답 없음';
-  } catch(e) {
-    resultEl.innerHTML = `<span style="color:var(--danger)">오류: ${e.message}</span>`;
-  } finally { setAILoading(false); }
+  openClaude(prompts[type]);
+  window.open('https://claude.ai/new', '_blank');
 }
 
-async function customAI() {
+function customAI() {
   const q = document.getElementById('ai-q').value.trim();
   if (!q) { showToast('질문을 입력해주세요'); return; }
-  const resultEl = document.getElementById('ai-result');
-  setAILoading(true);
-  resultEl.innerHTML = '<span class="ai-loading">답변 생성 중...</span>';
-  const ctx = items.length
-    ? '\n\n[현재 온보딩 목록]\n' + items.map(i=>`[${i.cat}] ${i.done?'완료':'미완료'} — ${i.text}`).join('\n')
-    : '';
-  const prompt = `당신은 KOSDAQ IPO를 준비 중인 소규모 제조사에 새로 합류한 경영지원 담당자의 온보딩을 돕는 어시스턴트입니다.${ctx}\n\n질문: ${q}`;
-  try {
-    resultEl.textContent = await runAI(prompt) || '응답 없음';
-  } catch(e) {
-    resultEl.innerHTML = `<span style="color:var(--danger)">오류: ${e.message}</span>`;
-  } finally { setAILoading(false); }
+  const ctx = getItemsContext();
+  const prompt = `KOSDAQ IPO를 준비 중인 소규모 제조사에 새로 합류한 경영지원 담당자입니다.${ctx}
+
+질문: ${q}`;
+  openClaude(prompt);
+  window.open('https://claude.ai/new', '_blank');
 }
 
 // ── 유틸 ──────────────────────────────────────
